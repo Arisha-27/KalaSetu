@@ -6,3 +6,10 @@ transformers
 realesrgan
 gfpgan
 supabase
+pandas
+numpy<2
+scikit-learn
+openpyxl
+xlrd
+lightgbm
+joblib
