@@ -31,18 +31,45 @@ export default function AIListingGenerator() {
   }
 
   const generateListing = async () => {
-    setIsGenerating(true)
-    // Simulate AI generation
-    setTimeout(() => {
+  setIsGenerating(true);
+
+  const formData = new FormData();
+    if (files.length > 0) {
+      formData.append("image", files[0]);
+    }
+
+    try {
+      const response = await fetch("http://127.0.0.1:5000/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        throw new Error(data.error || "Failed to generate listing");
+      }
+
       setGeneratedContent({
-        title: "Handcrafted Ceramic Vase with Traditional Motifs",
-        description: "This exquisite ceramic vase is meticulously handcrafted using traditional pottery techniques passed down through generations. Each piece features unique hand-painted motifs inspired by ancient Indian art forms. The vase stands 12 inches tall and is perfect for displaying fresh flowers or as a standalone decorative piece. Made from high-quality clay and fired at optimal temperatures for durability.",
-        tags: ["handmade", "ceramic", "vase", "traditional", "home-decor", "pottery"],
-        price: "1450"
-      })
-      setIsGenerating(false)
-    }, 2000)
-  }
+        title: data.title || "",
+        description: data.description || "",
+        tags: data.tags || [],
+        price: data.price ? data.price.toString() : ""
+      });
+    } catch (error) {
+      console.error("Error generating listing:", error);
+      setGeneratedContent({
+        title: "AI service unavailable",
+        description: "Please try again later.",
+        tags: [],
+        price: ""
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -70,7 +97,7 @@ export default function AIListingGenerator() {
               <input
                 type="file"
                 multiple
-                accept="image/*,video/*"
+                accept="image/,video/"
                 onChange={handleFileUpload}
                 className="hidden"
                 id="file-upload"

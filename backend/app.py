@@ -111,53 +111,113 @@
 # Run: uvicorn main:app --reload
 # -----------------------------
 
-## app.py
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse
-import uuid, os
-from services.image_ai import enhance_image
-from services.vision_text import caption_and_tags
-from services.llm_text import generate_listing_from_caption
-from services.supabase_service import upload_to_supabase_and_record
+import os
+from dotenv import load_dotenv
+from flask import Flask, request, jsonify, render_template_string
+from google import genai
+from google.genai import types
+from flask_cors import CORS
 
-UPLOAD_DIR = "static/uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# Load environment variables
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-app = FastAPI()
+# Initialize Flask app
+app = Flask(_name_)
+CORS(app)
 
-@app.post("/upload-image")
-async def upload_image(image: UploadFile = File(...)):
-    # Save original
-    file_id = str(uuid.uuid4())
-    orig_path = os.path.join(UPLOAD_DIR, f"{file_id}_orig.jpg")
-    with open(orig_path, "wb") as f:
-        f.write(await image.read())
+# Initialize Gemini client
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-    # 1) Enhance image (Real-ESRGAN/GFPGAN wrapper)
+
+@app.route("/", methods=["GET"])
+def home():
+    return render_template_string("""
+    <!doctype html>
+    <html>
+    <head><title>Upload Image</title></head>
+    <body>
+        <h2>Upload an Image</h2>
+        <form action="/upload" method="post" enctype="multipart/form-data">
+            <input type="file" name="image" accept="image/*" required>
+            <button type="submit">Upload</button>
+        </form>
+    </body>
+    </html>
+    """)
+
+
+@app.route("/upload", methods=["POST"])
+def upload_image():
+    if "image" not in request.files:
+        return jsonify({"error": "No image file uploaded"}), 400
+
+    image_file = request.files["image"]
+    image_bytes = image_file.read()
+
+    image_part = types.Part.from_bytes(
+        data=image_bytes, mime_type=image_file.content_type
+    )
+
     try:
-        enhanced_path = enhance_image(orig_path)
+        # --- Generate Title & Description ---
+        caption_response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=[
+                "Look at this product image and generate ONE suitable product title (5 words max) "
+                "and ONE product description (2-3 sentences). "
+                "Return the title on the first line, and the description on the second line. "
+                "Do not include extra text or explanations.",
+                image_part,
+            ],
+        )
+
+        lines = caption_response.text.strip().split("\n", 1)
+        title = lines[0].strip() if len(lines) > 0 else "Untitled Product"
+        description = lines[1].strip() if len(lines) > 1 else "No description available."
+
+        # --- Generate Tags ---
+        tag_response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=[
+                "Look at this product image and generate 3 to 5 short, lowercase, single-word tags "
+                "relevant to Indian handicraft/artistry. "
+                "Return them as a comma-separated list, nothing else.",
+                image_part,
+            ],
+        )
+        tags = [t.strip() for t in tag_response.text.strip().split(",") if t.strip()]
+
+        # --- Predict Price using Gemini ---
+        price_response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=[
+                f"This is a handicraft product.\n"
+                f"Title: {title}\n"
+                f"Description: {description}\n"
+                "Suggest a reasonable selling price in INR (just the number, no currency symbols or words)."
+            ],
+        )
+
+        try:
+            predicted_price = float(price_response.text.strip().split()[0])
+            predicted_price = round(predicted_price, 2)
+        except:
+            predicted_price = "Unavailable"
+
+        return jsonify({
+            "title": title,
+            "description": description,
+            "tags": tags,
+            "price": predicted_price
+        })
+
     except Exception as e:
-        # fallback: use original if enhancement fails
-        enhanced_path = orig_path
+        return jsonify({
+            "error": "AI service unavailable, please try again later.",
+            "details": str(e)
+        }), 503
 
-    # 2) Run vision/caption model
-    caption, tags = caption_and_tags(enhanced_path)
 
-    # 3) Generate title, story, price
-    listing = generate_listing_from_caption(caption, tags)
-
-    # 4) Upload to Supabase storage & create DB record (optional)
-    # This function should return public URL for image and DB id
-    supa_res = upload_to_supabase_and_record(enhanced_path, listing)
-
-    # combine results
-    response = {
-        "enhanced_image_url": supa_res.get("public_url", enhanced_path),
-        "title": listing.get("title"),
-        "story": listing.get("story"),
-        "tags": listing.get("tags"),
-        "suggested_price": listing.get("suggested_price"),
-        "price_reason": listing.get("price_reason"),
-        "db_id": supa_res.get("product_id")
-    }
-    return JSONResponse(response)
+if _name_ == "_main_":
+    app.run(debug=True, port=5000)
