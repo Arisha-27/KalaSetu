@@ -11,10 +11,10 @@ supabase = create_client(url, service_key)
 
 # Example: insert product
 def insert_product(data):
-    response = supabase.table("Ai_generation_log").insert(data).execute()
+    response = supabase.table("ai_generations_log").insert(data).execute()
     return response
 
 # Example: fetch products by artisan_id
 def fetch_products(artisan_id):
-    response = supabase.table("Ai_generation_log").select("*").eq("artisan_id", artisan_id).execute()
+    response = supabase.table("ai_generations_log").select("*").eq("artisan_id", artisan_id).execute()
     return response.data
