@@ -123,7 +123,7 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Initialize Flask app
-app = Flask(_name_)
+app = Flask(__name__)
 CORS(app)
 
 # Initialize Gemini client
@@ -219,5 +219,5 @@ def upload_image():
         }), 503
 
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     app.run(debug=True, port=5000)
