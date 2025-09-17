@@ -174,12 +174,12 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
                       <input
                         type="radio"
                         name="role"
-                        value="creator"
-                        checked={role === 'creator'}
-                        onChange={(e) => setRole(e.target.value as 'creator' | 'buyer')}
+                        value="Artisan"
+                        checked={role === 'Artisan'}
+                        onChange={(e) => setRole(e.target.value as 'Artisan' | 'buyer')}
                         className="text-blue-500 focus:ring-blue-500"
                       />
-                      <span className="text-sm">Creator</span>
+                      <span className="text-sm">Artisan</span>
                     </label>
                     <label className="flex items-center space-x-2 cursor-pointer">
                       <input
@@ -187,7 +187,7 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
                         name="role"
                         value="buyer"
                         checked={role === 'buyer'}
-                        onChange={(e) => setRole(e.target.value as 'creator' | 'buyer')}
+                        onChange={(e) => setRole(e.target.value as 'Artisan' | 'buyer')}
                         className="text-blue-500 focus:ring-blue-500"
                       />
                       <span className="text-sm">Buyer</span>

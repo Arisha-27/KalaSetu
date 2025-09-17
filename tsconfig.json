@@ -1,6 +1,13 @@
 {
   "files": [],
+<<<<<<< HEAD
   "references": [{ "path": "./tsconfig.app.json" }, { "path": "./tsconfig.node.json" }],
+=======
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ],
+>>>>>>> 93ec03dfc2a662c75957e56607bc43c05e1ce8f7
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { useAuth } from "@/hooks/useAuth";
 import { AuthForm } from "@/components/auth/AuthForm";
 import { Button } from "@/components/ui/button";
@@ -100,6 +101,17 @@ const Index = () => {
           </Card>
         </div>
       </main>
+=======
+// Update this page (the content is just a fallback if you fail to update the page)
+
+const Index = () => {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
+        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+      </div>
+>>>>>>> 93ec03dfc2a662c75957e56607bc43c05e1ce8f7
     </div>
   );
 };
