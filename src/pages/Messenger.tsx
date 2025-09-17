@@ -1,127 +1,139 @@
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { 
-  MessageCircle, 
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { supabase } from "../supabaseClient";
+import {
+  MessageCircle,
   Send,
   Search,
   Paperclip,
   Phone,
   Video,
   MoreVertical,
-  Circle
-} from "lucide-react"
+  Circle,
+  Sparkles
+} from "lucide-react";
+
+// --- Data Types ---
+interface Message {
+  id: number | string;
+  senderId: string;
+  content: string;
+  timestamp: string;
+}
 
 export default function Messenger() {
-  const [selectedChat, setSelectedChat] = useState(1)
-  const [message, setMessage] = useState("")
+  // Get User ID and Role from the URL
+  const [searchParams] = useSearchParams();
+  const CURRENT_USER_ID = searchParams.get("userId");
+  const CURRENT_USER_ROLE = searchParams.get("role");
 
+  // This should be the verified Conversation ID from your database
+  const CONVERSATION_ID = "9ed2c3a0-74e8-4457-9789-d79f7efe24fa";
+
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [message, setMessage] = useState("");
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
+  const webSocket = useRef<WebSocket | null>(null);
+
+  // --- Mock Data for UI sidebar ---
   const conversations = [
-    {
-      id: 1,
-      name: "Priya Sharma",
-      lastMessage: "Hi! I'm interested in commissioning a custom ceramic vase. Can you share more details?",
-      timestamp: "2 min ago",
-      unread: 2,
-      status: "online",
-      avatar: "👩‍🦱"
-    },
-    {
-      id: 2,
-      name: "Arjun Patel",
-      lastMessage: "Thank you for the beautiful scarf! When will my next order be ready?",
-      timestamp: "1 hour ago",
-      unread: 0,
-      status: "offline",
-      avatar: "👨‍💼"
-    },
-    {
-      id: 3,
-      name: "Meera Singh",
-      lastMessage: "I love your work! Do you ship internationally?",
-      timestamp: "3 hours ago",
-      unread: 1,
-      status: "online",
-      avatar: "👩‍🎨"
-    },
-    {
-      id: 4,
-      name: "Rajesh Kumar",
-      lastMessage: "Can you create a custom jewelry set for my daughter's wedding?",
-      timestamp: "1 day ago",
-      unread: 0,
-      status: "offline",
-      avatar: "👨‍🦳"
-    }
-  ]
+    { id: 1, name: "Priya Sharma", lastMessage: "Click here to start chatting!", timestamp: "2 min ago", unread: 2, status: "online", avatar: "👩‍🦱" },
+    { id: 2, name: "Arjun Patel", lastMessage: "Thank you for the beautiful scarf!", timestamp: "1 hour ago", unread: 0, status: "offline", avatar: "👨‍💼" }
+  ];
+  const [selectedChat, setSelectedChat] = useState(1);
+  const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
-  const messages = [
-    {
-      id: 1,
-      sender: "customer",
-      content: "Hi! I saw your ceramic vases on your profile and I'm really impressed with your work.",
-      timestamp: "10:30 AM"
-    },
-    {
-      id: 2,
-      sender: "artisan",
-      content: "Thank you so much! I'm glad you like them. Which piece caught your attention?",
-      timestamp: "10:32 AM"
-    },
-    {
-      id: 3,
-      sender: "customer",
-      content: "The blue and white traditional vase. I'm interested in commissioning something similar but with specific dimensions and colors.",
-      timestamp: "10:35 AM"
-    },
-    {
-      id: 4,
-      sender: "artisan",
-      content: "That sounds wonderful! I'd be happy to create a custom piece for you. Could you share the dimensions and color preferences you have in mind?",
-      timestamp: "10:38 AM"
-    },
-    {
-      id: 5,
-      sender: "customer",
-      content: "I need it to be about 15 inches tall, with earth tones - maybe browns and deep oranges. It's for my living room which has a rustic theme.",
-      timestamp: "10:42 AM"
-    },
-    {
-      id: 6,
-      sender: "artisan",
-      content: "Perfect! Earth tones will look beautiful with traditional motifs. The piece would take about 2-3 weeks to complete. For the size and customization, the price would be ₹2,800. Would that work for you?",
-      timestamp: "10:45 AM"
-    },
-    {
-      id: 7,
-      sender: "customer",
-      content: "That sounds perfect! How do we proceed with the order?",
-      timestamp: "Just now"
-    }
-  ]
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
-  const getStatusIndicator = (status: string) => {
-    return (
-      <Circle 
-        className={`w-3 h-3 ${status === 'online' ? 'text-success fill-current' : 'text-muted-foreground'}`} 
-      />
-    )
-  }
+  useEffect(() => {
+    if (!CURRENT_USER_ID || !CONVERSATION_ID) return;
 
-  const selectedConversation = conversations.find(c => c.id === selectedChat)
+    // Fetch message history from Supabase
+    const fetchMessageHistory = async () => {
+      const { data, error } = await supabase.from('messages').select('*').eq('conversation_id', CONVERSATION_ID).order('created_at', { ascending: true });
+      if (error) { console.error("Error fetching messages:", error); return; }
+
+      const formattedMessages = data.map((msg: any) => ({
+        id: msg.id, senderId: msg.sender_id, content: msg.original_text,
+        timestamp: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }));
+      setMessages(formattedMessages);
+    };
+
+    fetchMessageHistory();
+
+    // Establish WebSocket connection
+    const socket = new WebSocket(`ws://127.0.0.1:8000/ws/${CURRENT_USER_ID}`);
+    webSocket.current = socket;
+
+    socket.onopen = () => console.log(`WebSocket for user ${CURRENT_USER_ID} established.`);
+
+    // Listen for new real-time messages
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'message') {
+        const newMessage: Message = {
+          id: new Date().getTime(), senderId: data.sender_id, content: data.text,
+          timestamp: new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setMessages((prevMessages) => [...prevMessages, newMessage]);
+      } else if (data.type === 'suggestion') {
+        setAiSuggestion(data.text);
+      }
+    };
+
+    socket.onclose = () => console.log(`WebSocket for user ${CURRENT_USER_ID} closed.`);
+
+    return () => socket.close();
+
+  }, [CURRENT_USER_ID, CONVERSATION_ID]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
 
   const handleSendMessage = () => {
-    if (message.trim()) {
-      // Handle sending message
-      setMessage("")
+    if (message.trim() && webSocket.current?.readyState === WebSocket.OPEN) {
+      const payload = { conversation_id: CONVERSATION_ID, text: message };
+      webSocket.current.send(JSON.stringify(payload));
+      const optimisticMessage: Message = {
+        id: new Date().getTime(),
+        senderId: CURRENT_USER_ID || '',
+        content: message,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setMessages((prevMessages) => [...prevMessages, optimisticMessage]);
+      setMessage("");
+      setAiSuggestion(null);
     }
+  };
+
+  const handleSuggestionClick = () => {
+    if (aiSuggestion) {
+      setMessage(aiSuggestion);
+      setAiSuggestion(null);
+    }
+  };
+
+  const getStatusIndicator = (status: string) => (
+    <Circle className={`w-3 h-3 ${status === 'online' ? 'text-green-500 fill-current' : 'text-gray-400'}`} />
+  );
+
+  const selectedConversation = conversations.find(c => c.id === selectedChat);
+
+  if (!CURRENT_USER_ID) {
+    return <div>Loading user... Please ensure userId and role are in the URL.</div>;
   }
 
   return (
     <div className="h-[calc(100vh-8rem)] flex gap-6">
-      {/* Conversations List */}
       <Card className="w-80 border-border">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -135,10 +147,7 @@ export default function Messenger() {
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input 
-              placeholder="Search conversations..." 
-              className="pl-10 border-border"
-            />
+            <Input placeholder="Search conversations..." className="pl-10 border-border" />
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -147,9 +156,7 @@ export default function Messenger() {
               <div
                 key={conversation.id}
                 onClick={() => setSelectedChat(conversation.id)}
-                className={`p-4 cursor-pointer transition-colors border-b border-border hover:bg-muted/50 ${
-                  selectedChat === conversation.id ? 'bg-primary/5 border-l-2 border-l-primary' : ''
-                }`}
+                className={`p-4 cursor-pointer transition-colors border-b border-border hover:bg-muted/50 ${selectedChat === conversation.id ? 'bg-primary/5 border-l-2 border-l-primary' : ''}`}
               >
                 <div className="flex items-start gap-3">
                   <div className="relative">
@@ -181,11 +188,9 @@ export default function Messenger() {
         </CardContent>
       </Card>
 
-      {/* Chat Area */}
       <Card className="flex-1 border-border flex flex-col">
         {selectedConversation && (
           <>
-            {/* Chat Header */}
             <CardHeader className="pb-3 border-b border-border">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -205,65 +210,42 @@ export default function Messenger() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm">
-                    <Phone className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    <Video className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
+                  <Button variant="ghost" size="sm"><Phone className="w-4 h-4" /></Button>
+                  <Button variant="ghost" size="sm"><Video className="w-4 h-4" /></Button>
+                  <Button variant="ghost" size="sm"><MoreVertical className="w-4 h-4" /></Button>
                 </div>
               </div>
             </CardHeader>
 
-            {/* Messages */}
             <CardContent className="flex-1 p-4 overflow-y-auto">
               <div className="space-y-4">
                 {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.sender === 'artisan' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[70%] p-3 rounded-lg ${
-                        msg.sender === 'artisan'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-foreground'
-                      }`}
-                    >
+                  <div key={msg.id} className={`flex ${msg.senderId === CURRENT_USER_ID ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[70%] p-3 rounded-lg ${msg.senderId === CURRENT_USER_ID ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
                       <p className="text-sm">{msg.content}</p>
-                      <span className={`text-xs mt-1 block ${
-                        msg.sender === 'artisan' 
-                          ? 'text-primary-foreground/70' 
-                          : 'text-muted-foreground'
-                      }`}>
+                      <span className={`text-xs mt-1 block ${msg.senderId === CURRENT_USER_ID ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
                         {msg.timestamp}
                       </span>
                     </div>
                   </div>
                 ))}
+                <div ref={messagesEndRef} />
               </div>
             </CardContent>
 
-            {/* Message Input */}
             <div className="p-4 border-t border-border">
+              {CURRENT_USER_ROLE === 'artisan' && aiSuggestion && (
+                <div className="mb-2 p-2 bg-muted rounded-md cursor-pointer hover:bg-primary/10 transition-colors" onClick={handleSuggestionClick}>
+                  <div className="flex items-center gap-2 text-sm text-primary">
+                    <Sparkles className="w-4 h-4" />
+                    <p className="flex-1 italic"><strong>AI Suggestion:</strong> {aiSuggestion}</p>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm">
-                  <Paperclip className="w-4 h-4" />
-                </Button>
-                <Input
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Type your message..."
-                  className="flex-1 border-border"
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                />
-                <Button 
-                  onClick={handleSendMessage}
-                  className="bg-primary hover:bg-primary-hover text-primary-foreground"
-                >
+                <Button variant="ghost" size="sm"><Paperclip className="w-4 h-4" /></Button>
+                <Input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Type your message..." className="flex-1 border-border" onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} />
+                <Button onClick={handleSendMessage} className="bg-primary hover:bg-primary-hover text-primary-foreground">
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
@@ -272,5 +254,5 @@ export default function Messenger() {
         )}
       </Card>
     </div>
-  )
+  );
 }

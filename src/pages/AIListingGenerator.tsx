@@ -2,7 +2,7 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = 'https://obllonwzdjnokqeyvtsi.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ibGxvbnd6ZGpub2txZXl2dHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5ODQzMjIsImV4cCI6MjA3MjU2MDMyMn0.4hxTc9zEL-GBG2k1pDBUjtQIQHWgYRgoPfOSQ6uOAJc'  
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ibGxvbnd6ZGpub2txZXl2dHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5ODQzMjIsImV4cCI6MjA3MjU2MDMyMn0.4hxTc9zEL-GBG2k1pDBUjtQIQHWgYRgoPfOSQ6uOAJc'
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
@@ -14,10 +14,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { 
-  Upload, 
-  Sparkles, 
-  Image as ImageIcon, 
+import {
+  Upload,
+  Sparkles,
+  Image as ImageIcon,
   Video,
   Tag,
   DollarSign,
@@ -41,46 +41,35 @@ export default function AIListingGenerator() {
   }
 
   const generateListing = async () => {
-  setIsGenerating(true);
-
-  const formData = new FormData();
-    if (files.length > 0) {
-      formData.append("image", files[0]);
-    }
+    if (files.length === 0) return
+    setIsGenerating(true)
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/upload", {
+      const formData = new FormData()
+      formData.append("image", files[0]) // only sending one image for now
+
+      const response = await fetch("http://localhost:8001/upload-image", {
         method: "POST",
         body: formData,
-      });
+      })
 
-      const data = await response.json();
+      if (!response.ok) throw new Error("Failed to generate listing")
 
-      if (!response.ok || data.error) {
-        throw new Error(data.error || "Failed to generate listing");
-      }
+      const data = await response.json()
 
+      // Map backend response to frontend state
       setGeneratedContent({
         title: data.title || "",
-        description: data.description || "",
+        description: data.story || "",
         tags: data.tags || [],
-        price: data.price ? data.price.toString() : ""
-      });
+        price: data.suggested_price || "",
+      })
     } catch (error) {
-      console.error("Error generating listing:", error);
-      setGeneratedContent({
-        title: "AI service unavailable",
-        description: "Please try again later.",
-        tags: [],
-        price: ""
-      });
+      console.error("Error generating listing:", error)
     } finally {
-      setIsGenerating(false);
+      setIsGenerating(false)
     }
-  };
-
-
-
+  }
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3 mb-6">
@@ -143,7 +132,7 @@ export default function AIListingGenerator() {
               </div>
             )}
 
-            <Button 
+            <Button
               onClick={generateListing}
               disabled={files.length === 0 || isGenerating}
               className="w-full bg-primary hover:bg-primary-hover text-primary-foreground"
@@ -174,7 +163,7 @@ export default function AIListingGenerator() {
           <CardContent className="space-y-4">
             <div>
               <label className="text-sm font-medium text-foreground mb-2 block">Product Title</label>
-              <Input 
+              <Input
                 value={generatedContent.title}
                 onChange={(e) => setGeneratedContent(prev => ({ ...prev, title: e.target.value }))}
                 placeholder="AI will generate a compelling title..."
@@ -184,7 +173,7 @@ export default function AIListingGenerator() {
 
             <div>
               <label className="text-sm font-medium text-foreground mb-2 block">Description</label>
-              <Textarea 
+              <Textarea
                 value={generatedContent.description}
                 onChange={(e) => setGeneratedContent(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="AI will create a detailed description..."
@@ -212,7 +201,7 @@ export default function AIListingGenerator() {
                 <DollarSign className="w-4 h-4" />
                 Suggested Price (₹)
               </label>
-              <Input 
+              <Input
                 value={generatedContent.price}
                 onChange={(e) => setGeneratedContent(prev => ({ ...prev, price: e.target.value }))}
                 placeholder="AI will suggest optimal pricing..."
