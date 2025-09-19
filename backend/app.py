@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime
 from typing import Dict, Any, List
-import re # <-- ADD THIS IMPORT AT THE TOP
+import re 
 
 # --- Environment and Configuration ---
 from dotenv import load_dotenv
@@ -54,15 +54,11 @@ class ListingResponse(BaseModel):
 # --- 3. FastAPI Application ---
 app = FastAPI(title="KalaSetu AI Chat Backend")
 
-# --- CRITICAL CHANGE: Updated CORS for Production ---
-# This list includes your main Vercel URL and a regular expression
-# to automatically allow all Vercel preview URLs in the future.
+# This list will automatically allow all your Vercel preview URLs.
 origins = [
     "http://localhost:5173", # For local development
-    "https://kala-setu-seven.vercel.app", # Your main production URL
 ]
-
-# This regex will match any URL like: https://kala-setu-....vercel.app
+# This regex will match your main URL and any preview URL like: https://kala-setu-....vercel.app
 origins.append(re.compile(r"https:\/\/kala-setu-.*\.vercel\.app"))
 
 app.add_middleware(
@@ -73,8 +69,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- 4. ADDED: API Endpoint and Data for Trend Spotter ---
+trend_suggestions = {
+    "Festive Diwali Decor": {
+        "what_to_make": ["Handcrafted diyas", "Torans", "Ethnic home decor"],
+        "why_trending": "Upcoming Diwali season, high demand for festive home decorations",
+        "materials": ["Clay", "Fabric", "Paint", "Beads"],
+        "price_range": "₹200-₹800",
+        "source": "Local artisans, wholesale craft suppliers"
+    },
+    "Winter Wedding Season": {
+        "what_to_make": ["Bridal jewelry", "Ceremonial items", "Wedding gift sets"],
+        "why_trending": "Wedding season approaching in North India",
+        "materials": ["Gold plated metal", "Beads", "Fabric", "Stones"],
+        "price_range": "₹500-₹5000",
+        "source": "Local jewelers, online wholesalers"
+    },
+    "Sustainable Packaging": {
+        "what_to_make": ["Biodegradable boxes", "Eco-friendly wraps", "Reusable bags"],
+        "why_trending": "Growing consumer preference for sustainable products",
+        "materials": ["Paper", "Kraft", "Jute", "Plant-based plastics"],
+        "price_range": "₹50-₹300",
+        "source": "Eco-friendly packaging suppliers"
+    },
+    "Personalized Gifts": {
+        "what_to_make": ["Customized mugs", "Engraved photo frames", "Name keychains"],
+        "why_trending": "Rising demand for personalized gifts for birthdays & anniversaries",
+        "materials": ["Ceramic", "Wood", "Acrylic", "Metal"],
+        "price_range": "₹150-₹1000",
+        "source": "Online craft suppliers, printing shops"
+    }
+}
 
-# --- 4. WebSocket Connection Manager & Logic ---
+@app.get("/trend-suggestions/{trend_name}")
+def get_suggestions(trend_name: str):
+    # FastAPI automatically decodes URL-encoded strings like '%20'
+    data = trend_suggestions.get(trend_name)
+    if not data:
+        raise HTTPException(status_code=404, detail="Trend not found")
+    return data
+
+
+# --- 5. WebSocket Connection Manager & Logic ---
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
@@ -91,6 +127,8 @@ class ConnectionManager:
             await self.active_connections[user_id].send_json(data)
 
 manager = ConnectionManager()
+
+# ... (The rest of your WebSocket and /upload-image code remains the same) ...
 
 def translate_text(text: str, target_language: str) -> str:
     if not text or not target_language: return ""
@@ -160,7 +198,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
         manager.disconnect(user_id)
 
 
-# --- 5. API Endpoint for AI Listing Generator ---
+# --- 6. API Endpoint for AI Listing Generator ---
 @app.post("/upload-image", response_model=ListingResponse)
 async def generate_listing(image: UploadFile = File(...)):
     if not image.content_type.startswith("image/"):
