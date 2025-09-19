@@ -1,8 +1,29 @@
+# For the web server
 fastapi
 uvicorn
+python-dotenv
+pydantic<2
 websockets
+
+# For database and AI services
 supabase
 google-generativeai
-python-dotenv
-pydantic
 deep-translator
+
+# For ML and data processing
+numpy<2
+pandas
+scikit-learn
+lightgbm
+joblib
+
+# For image and file handling
+pillow
+openpyxl
+xlrd
+
+# For heavy AI models
+torch --index-url https://download.pytorch.org/whl/cpu
+transformers
+realesrgan
+gfpgan
