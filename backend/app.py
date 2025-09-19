@@ -1,230 +1,71 @@
-import os
-import json
-from datetime import datetime
-from typing import Dict, Any, List
-import re 
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Target, Loader2 } from "lucide-react";
 
-# --- Environment and Configuration ---
-from dotenv import load_dotenv
-load_dotenv()
+// ... (you can keep your other type definitions and helper functions) ...
 
-# --- Third-Party Imports ---
-import google.generativeai as genai
-from supabase import create_client, Client
-from deep_translator import GoogleTranslator
+export default function AITrendSpotter() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedTrend, setSelectedTrend] = useState(null);
+  const [selectedTrendTitle, setSelectedTrendTitle] = useState("");
+  const [loadingTrendId, setLoadingTrendId] = useState(null);
+  
+  // This is the data for the full UI
+  const currentTrends = [
+    { id: 1, trend: "Festive Diwali Decor", icon: "🪔", urgency: "high", demand: "Rising", description: "...", opportunity: "High", timeframe: "Next 6 weeks", suggestedActions: ["..."] },
+    { id: 2, trend: "Winter Wedding Season", icon: "💒", urgency: "very-high", demand: "Surging", description: "...", opportunity: "Very High", timeframe: "Next 12 weeks", suggestedActions: ["..."] },
+    { id: 3, trend: "Sustainable Packaging", icon: "🌱", urgency: "medium", demand: "Steady Growth", description: "...", opportunity: "Medium", timeframe: "Long-term", suggestedActions: ["..."] },
+    { id: 4, trend: "Personalized Gifts", icon: "🎁", urgency: "high", demand: "Rising", description: "...", opportunity: "High", timeframe: "Ongoing", suggestedActions: ["..."] }
+  ];
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-import PIL.Image
-import io
-
-# --- 1. Client Setup (Supabase, AI) ---
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-gemini_model = genai.GenerativeModel('gemini-1.5-flash')
-
-# --- 2. Pydantic Schemas ---
-class IncomingMessage(BaseModel):
-    conversation_id: str
-    text: str
-
-class OutgoingMessage(BaseModel):
-    type: str = "message"
-    conversation_id: str
-    sender_id: str
-    text: str
-    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
-
-class AiSuggestion(BaseModel):
-    type: str = "suggestion"
-    conversation_id: str
-    text: str
-
-class ListingResponse(BaseModel):
-    title: str
-    story: str
-    tags: List[str]
-    suggested_price: str
-
-
-# --- 3. FastAPI Application ---
-app = FastAPI(title="KalaSetu AI Chat Backend")
-
-# This list will automatically allow all your Vercel preview URLs.
-origins = [
-    "http://localhost:5173", # For local development
-]
-# This regex will match your main URL and any preview URL like: https://kala-setu-....vercel.app
-origins.append(re.compile(r"https:\/\/kala-setu-.*\.vercel\.app"))
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# --- 4. ADDED: API Endpoint and Data for Trend Spotter ---
-trend_suggestions = {
-    "Festive Diwali Decor": {
-        "what_to_make": ["Handcrafted diyas", "Torans", "Ethnic home decor"],
-        "why_trending": "Upcoming Diwali season, high demand for festive home decorations",
-        "materials": ["Clay", "Fabric", "Paint", "Beads"],
-        "price_range": "₹200-₹800",
-        "source": "Local artisans, wholesale craft suppliers"
-    },
-    "Winter Wedding Season": {
-        "what_to_make": ["Bridal jewelry", "Ceremonial items", "Wedding gift sets"],
-        "why_trending": "Wedding season approaching in North India",
-        "materials": ["Gold plated metal", "Beads", "Fabric", "Stones"],
-        "price_range": "₹500-₹5000",
-        "source": "Local jewelers, online wholesalers"
-    },
-    "Sustainable Packaging": {
-        "what_to_make": ["Biodegradable boxes", "Eco-friendly wraps", "Reusable bags"],
-        "why_trending": "Growing consumer preference for sustainable products",
-        "materials": ["Paper", "Kraft", "Jute", "Plant-based plastics"],
-        "price_range": "₹50-₹300",
-        "source": "Eco-friendly packaging suppliers"
-    },
-    "Personalized Gifts": {
-        "what_to_make": ["Customized mugs", "Engraved photo frames", "Name keychains"],
-        "why_trending": "Rising demand for personalized gifts for birthdays & anniversaries",
-        "materials": ["Ceramic", "Wood", "Acrylic", "Metal"],
-        "price_range": "₹150-₹1000",
-        "source": "Online craft suppliers, printing shops"
+  const fetchTrendDetails = async (trend) => {
+    setLoadingTrendId(trend.id);
+    try {
+      const API_URL = import.meta.env.VITE_API_URL;
+      const trendName = encodeURIComponent(trend.trend);
+      const response = await fetch(`${API_URL}/trend-suggestions/${trendName}`);
+      
+      if (!response.ok) throw new Error("API call failed");
+      
+      const data = await response.json();
+      setSelectedTrend(data);
+      setSelectedTrendTitle(trend.trend);
+      setIsModalOpen(true);
+    } catch (err) {
+      console.error(err);
+      alert("Error fetching suggestions.");
+    } finally {
+      setLoadingTrendId(null);
     }
+  };
+
+  // ... (getUrgencyBadge, getDemandIcon functions) ...
+  
+  return (
+    <div className="space-y-6">
+      {/* ... (Your header and other static JSX) ... */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {currentTrends.map((trend) => (
+          <Card key={trend.id}>
+            <CardHeader>
+              <CardTitle>{trend.trend}</CardTitle>
+              {/* ... Other header details ... */}
+            </CardHeader>
+            <CardContent>
+              <p>{trend.description}</p>
+              {/* ... All the other UI details from your localhost version ... */}
+              <Button onClick={() => fetchTrendDetails(trend)} disabled={loadingTrendId === trend.id}>
+                {loadingTrendId === trend.id ? <Loader2 className="animate-spin" /> : <Target />}
+                Get AI Suggestions
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      {/* ... (Your Dialog/Modal JSX) ... */}
+    </div>
+  );
 }
-
-@app.get("/trend-suggestions/{trend_name}")
-def get_suggestions(trend_name: str):
-    # FastAPI automatically decodes URL-encoded strings like '%20'
-    data = trend_suggestions.get(trend_name)
-    if not data:
-        raise HTTPException(status_code=404, detail="Trend not found")
-    return data
-
-
-# --- 5. WebSocket Connection Manager & Logic ---
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}
-    async def connect(self, user_id: str, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections[user_id] = websocket
-        print(f"User {user_id} connected.")
-    def disconnect(self, user_id: str):
-        if user_id in self.active_connections:
-            del self.active_connections[user_id]
-            print(f"User {user_id} disconnected.")
-    async def send_json(self, user_id: str, data: dict):
-        if user_id in self.active_connections:
-            await self.active_connections[user_id].send_json(data)
-
-manager = ConnectionManager()
-
-# ... (The rest of your WebSocket and /upload-image code remains the same) ...
-
-def translate_text(text: str, target_language: str) -> str:
-    if not text or not target_language: return ""
-    try:
-        return GoogleTranslator(source='auto', target=target_language).translate(text)
-    except Exception as e:
-        print(f"Error during translation: {e}")
-        return text
-
-async def generate_ai_reply(history: str, new_message: str, target_language: str) -> str:
-    lang_map = {'hi': 'Hindi', 'en': 'English'}
-    language_name = lang_map.get(target_language, 'the user\'s native language')
-    prompt = (f"You are a helpful assistant for an Indian artisan. Based on the conversation history:\n\n---\n{history}\n---\n\nThe buyer just said: '{new_message}'. Generate a polite reply in {language_name}.")
-    try:
-        response = gemini_model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        print(f"Error generating AI reply: {e}")
-        return "Could not generate a reply."
-
-def get_conversation_and_participants(conversation_id: str, sender_id: str):
-    try:
-        query = supabase.table("conversations").select("*, messages(*, sender:profiles(*)), participants:profiles(*)").eq("id", conversation_id).single().execute()
-        d = query.data
-        if not d: return None, None, None, None
-        s = next((p for p in d['participants'] if p['id'] == sender_id), None)
-        r = next((p for p in d['participants'] if p['id'] != sender_id), None)
-        return d, s, r, d['messages']
-    except Exception as e:
-        print(f"Error fetching conversation: {e}")
-        return None, None, None, None
-
-def save_message_to_db(conversation_id: str, sender_id: str, text: str):
-    try:
-        supabase.table("messages").insert({"conversation_id": conversation_id, "sender_id": sender_id, "original_text": text}).execute()
-    except Exception as e:
-        print(f"Error saving message: {e}")
-
-@app.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: str):
-    await manager.connect(user_id, websocket)
-    try:
-        while True:
-            data = await websocket.receive_json()
-            incoming = IncomingMessage(**data)
-            save_message_to_db(incoming.conversation_id, user_id, incoming.text)
-            _, sender, recipient, messages = get_conversation_and_participants(incoming.conversation_id, user_id)
-            if not (sender and recipient):
-                if manager.active_connections.get(user_id):
-                    await manager.send_json(user_id, {"error": "Invalid conversation or user."})
-                continue
-            translated = translate_text(incoming.text, recipient['language_preference'])
-            outgoing_msg = OutgoingMessage(conversation_id=incoming.conversation_id, sender_id=user_id, text=translated)
-            if manager.active_connections.get(recipient['id']):
-                 await manager.send_json(recipient['id'], outgoing_msg.dict())
-            if recipient['role'] == 'artisan':
-                history = "\n".join([f"{'Buyer' if m['sender']['role'] == 'buyer' else 'Artisan'}: {m['original_text']}" for m in sorted(messages, key=lambda m: m.get('created_at', ''))])
-                history += f"\n{'Buyer' if sender['role'] == 'buyer' else 'Artisan'}: {incoming.text}"
-                ai_reply = await generate_ai_reply(history, translated, recipient['language_preference'])
-                suggestion = AiSuggestion(conversation_id=incoming.conversation_id, text=ai_reply)
-                if manager.active_connections.get(recipient['id']):
-                    await manager.send_json(recipient['id'], suggestion.dict())
-    except WebSocketDisconnect:
-        manager.disconnect(user_id)
-    except Exception as e:
-        print(f"An error occurred with user {user_id}: {e}")
-        manager.disconnect(user_id)
-
-
-# --- 6. API Endpoint for AI Listing Generator ---
-@app.post("/upload-image", response_model=ListingResponse)
-async def generate_listing(image: UploadFile = File(...)):
-    if not image.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File provided is not an image.")
-
-    try:
-        contents = await image.read()
-        pil_image = PIL.Image.open(io.BytesIO(contents))
-        
-        prompt = [
-            "You are an expert in marketing handcrafted goods from India. Analyze this image of an artisan's product. Your task is to generate a product title, a compelling story, relevant SEO tags, and a suggested price in INR. Respond with only a valid JSON object in the following format: {\"title\": \"...\", \"story\": \"...\", \"tags\": [\"...\", \"...\"], \"suggested_price\": \"₹...\"}",
-            pil_image
-        ]
-        
-        response = gemini_model.generate_content(prompt)
-        
-        cleaned_response_text = response.text.strip().replace("```json", "").replace("```", "")
-        response_json = json.loads(cleaned_response_text)
-
-        return ListingResponse(
-            title=response_json.get("title", "AI Title Generation Failed"),
-            story=response_json.get("story", "Could not generate a story for this product."),
-            tags=response_json.get("tags", []),
-            suggested_price=response_json.get("suggested_price", "₹0")
-        )
-
-    except Exception as e:
-        print(f"Error during AI listing generation: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate AI content.")
