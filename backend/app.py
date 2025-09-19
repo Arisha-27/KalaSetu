@@ -26,7 +26,6 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 gemini_model = genai.GenerativeModel('gemini-1.5-flash')
 
-# --- 2. Pydantic Schemas ---
 class ListingResponse(BaseModel):
     title: str
     story: str
