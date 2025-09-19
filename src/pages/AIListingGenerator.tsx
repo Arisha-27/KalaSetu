@@ -1,13 +1,3 @@
-// supabaseClient.js
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = 'https://obllonwzdjnokqeyvtsi.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ibGxvbnd6ZGpub2txZXl2dHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY5ODQzMjIsImV4cCI6MjA3MjU2MDMyMn0.4hxTc9zEL-GBG2k1pDBUjtQIQHWgYRgoPfOSQ6uOAJc'
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
-
-
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -46,9 +36,12 @@ export default function AIListingGenerator() {
 
     try {
       const formData = new FormData()
-      formData.append("image", files[0]) // only sending one image for now
+      formData.append("image", files[0])
 
-      const response = await fetch("http://127.0.0.1:8000/upload-image", {
+      // --- THIS IS THE FIX ---
+      // The hardcoded URL has been replaced with the environment variable from Vercel.
+      const API_URL = import.meta.env.VITE_API_URL;
+      const response = await fetch(`${API_URL}/upload-image`, {
         method: "POST",
         body: formData,
       });
@@ -57,7 +50,6 @@ export default function AIListingGenerator() {
 
       const data = await response.json()
 
-      // Map backend response to frontend state
       setGeneratedContent({
         title: data.title || "",
         description: data.story || "",
@@ -70,6 +62,8 @@ export default function AIListingGenerator() {
       setIsGenerating(false)
     }
   }
+
+  // ... the rest of your JSX component remains the same
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3 mb-6">
@@ -96,7 +90,7 @@ export default function AIListingGenerator() {
               <input
                 type="file"
                 multiple
-                accept="image/,video/"
+                accept="image/*,video/*"
                 onChange={handleFileUpload}
                 className="hidden"
                 id="file-upload"
