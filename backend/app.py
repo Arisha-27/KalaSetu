@@ -2,13 +2,13 @@ import os
 import json
 from datetime import datetime
 from typing import Dict, Any, List
+import re # <-- ADD THIS IMPORT AT THE TOP
 
 # --- Environment and Configuration ---
 from dotenv import load_dotenv
 load_dotenv()
 
 # --- Third-Party Imports ---
-# NOTE: uvicorn import removed as it's not needed for production
 import google.generativeai as genai
 from supabase import create_client, Client
 from deep_translator import GoogleTranslator
@@ -55,13 +55,16 @@ class ListingResponse(BaseModel):
 app = FastAPI(title="KalaSetu AI Chat Backend")
 
 # --- CRITICAL CHANGE: Updated CORS for Production ---
-# This allows your live Vercel frontend to communicate with your Render backend.
+# This list includes your main Vercel URL and a regular expression
+# to automatically allow all Vercel preview URLs in the future.
 origins = [
-    # For local development
-    "http://localhost:5173",
-    # Your live Vercel frontend URL
-    "https://kala-setu-seven.vercel.app",
+    "http://localhost:5173", # For local development
+    "https://kala-setu-seven.vercel.app", # Your main production URL
 ]
+
+# This regex will match any URL like: https://kala-setu-....vercel.app
+origins.append(re.compile(r"https:\/\/kala-setu-.*\.vercel\.app"))
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
