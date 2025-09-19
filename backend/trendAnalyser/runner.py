@@ -5,7 +5,11 @@ app = FastAPI()
 
 # Allow frontend requests
 origins = [
-    "http://localhost:8080",  # Next.js default
+    # For local development
+    "http://localhost:5173",
+    # Your live Vercel URLs
+    "https://kala-setu-seven.vercel.app",
+    "https://kala-setu-1tw6rab-arisha-27s-projects.vercel.app"
 ]
 
 app.add_middleware(
