@@ -48,11 +48,11 @@ export default function AIListingGenerator() {
       const formData = new FormData()
       formData.append("image", files[0]) // only sending one image for now
 
-      const response = await fetch("http://localhost:8001/upload-image", {
+      const response = await fetch("http://127.0.0.1:8000/upload-image", {
         method: "POST",
         body: formData,
-      })
-
+      });
+      
       if (!response.ok) throw new Error("Failed to generate listing")
 
       const data = await response.json()

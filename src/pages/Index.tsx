@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { useAuth } from "@/hooks/useAuth";
 import { AuthForm } from "@/components/auth/AuthForm";
 import { Button } from "@/components/ui/button";
@@ -56,10 +55,10 @@ const Index = () => {
             </CardHeader>
             <CardContent className="text-center space-y-6">
               <p className="text-muted-foreground max-w-2xl mx-auto">
-                Connect with creators, discover amazing artwork, and build your creative community. 
+                Connect with creators, discover amazing artwork, and build your creative community.
                 Share your work, follow your favorite creators, and explore a world of artistic inspiration.
               </p>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
                 <div className="p-6 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
                   <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white text-xl mb-4 mx-auto">
@@ -70,7 +69,7 @@ const Index = () => {
                     Upload and showcase your creative work to the community
                   </p>
                 </div>
-                
+
                 <div className="p-6 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
                   <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white text-xl mb-4 mx-auto">
                     👥
@@ -80,7 +79,7 @@ const Index = () => {
                     Follow other creators and build meaningful connections
                   </p>
                 </div>
-                
+
                 <div className="p-6 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
                   <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white text-xl mb-4 mx-auto">
                     🛍️
@@ -93,7 +92,8 @@ const Index = () => {
               </div>
 
               <div className="pt-6">
-                <Button variant="hero" size="lg">
+                {/* You might want to link this button to your dashboard or messenger page */}
+                <Button size="lg">
                   Start Exploring
                 </Button>
               </div>
@@ -101,17 +101,6 @@ const Index = () => {
           </Card>
         </div>
       </main>
-=======
-// Update this page (the content is just a fallback if you fail to update the page)
-
-const Index = () => {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
->>>>>>> 93ec03dfc2a662c75957e56607bc43c05e1ce8f7
     </div>
   );
 };

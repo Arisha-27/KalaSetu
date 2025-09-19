@@ -1,6 +1,7 @@
 import os
+import json
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 # --- Environment and Configuration ---
 from dotenv import load_dotenv
@@ -12,8 +13,11 @@ import google.generativeai as genai
 from supabase import create_client, Client
 from deep_translator import GoogleTranslator
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+import PIL.Image
+import io
 
 # --- 1. Client Setup (Supabase, AI) ---
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -23,7 +27,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 gemini_model = genai.GenerativeModel('gemini-1.5-flash')
 
-# --- 2. Pydantic Schemas (using str for UUIDs) ---
+# --- 2. Pydantic Schemas ---
 class IncomingMessage(BaseModel):
     conversation_id: str
     text: str
@@ -40,152 +44,157 @@ class AiSuggestion(BaseModel):
     conversation_id: str
     text: str
 
-# --- 3. WebSocket Connection Manager (using str for user_id) ---
+# --- NEW: Pydantic models for Listing Generator ---
+class ListingResponse(BaseModel):
+    title: str
+    story: str
+    tags: List[str]
+    suggested_price: str
+
+
+# --- 3. FastAPI Application ---
+app = FastAPI(title="KalaSetu AI Chat Backend")
+
+# --- NEW: CORS Middleware (to fix connection errors) ---
+origins = [
+    "http://localhost", "http://localhost:8080", "http://localhost:8081",
+    "http://localhost:8082", "http://localhost:8083", "http://localhost:8084",
+    "http://localhost:5173", # Add any other ports your frontend uses
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- 4. WebSocket Connection Manager & Logic (Existing Chat Feature) ---
 class ConnectionManager:
+    # ... (ConnectionManager class remains the same)
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
-
     async def connect(self, user_id: str, websocket: WebSocket):
         await websocket.accept()
         self.active_connections[user_id] = websocket
         print(f"User {user_id} connected.")
-
     def disconnect(self, user_id: str):
         if user_id in self.active_connections:
             del self.active_connections[user_id]
             print(f"User {user_id} disconnected.")
-
     async def send_json(self, user_id: str, data: dict):
         if user_id in self.active_connections:
-            websocket = self.active_connections[user_id]
-            await websocket.send_json(data)
+            await self.active_connections[user_id].send_json(data)
 
 manager = ConnectionManager()
 
-# --- 4. AI & Translation Services ---
 def translate_text(text: str, target_language: str) -> str:
-    """Translates text using the deep-translator library."""
-    if not text or not target_language:
-        return ""
+    # ... (translate_text function remains the same)
+    if not text or not target_language: return ""
     try:
-        translated_text = GoogleTranslator(source='auto', target=target_language).translate(text)
-        print(f"Translated (deep-translator): '{text}' to '{translated_text}' in {target_language}")
-        return translated_text
+        return GoogleTranslator(source='auto', target=target_language).translate(text)
     except Exception as e:
-        print(f"Error during translation with deep-translator: {e}")
+        print(f"Error during translation: {e}")
         return text
 
 async def generate_ai_reply(history: str, new_message: str, target_language: str) -> str:
-    """Generates a context-aware reply using Gemini Pro."""
+    # ... (generate_ai_reply function remains the same)
     lang_map = {'hi': 'Hindi', 'en': 'English'}
     language_name = lang_map.get(target_language, 'the user\'s native language')
-    
-    prompt = (
-        "You are a helpful and polite assistant for an Indian artisan. Your goal is to help them "
-        "communicate effectively with a buyer. You must reply in the specified language.\n\n"
-        "--- Conversation History ---\n"
-        f"{history}\n"
-        "---------------------------\n\n"
-        f"The buyer just sent this message: '{new_message}'\n\n"
-        f"Based on the full conversation, generate a polite and professional reply in {language_name} for the artisan to send."
-    )
+    prompt = (f"You are a helpful assistant for an Indian artisan. Based on the conversation history:\n\n---\n{history}\n---\n\nThe buyer just said: '{new_message}'. Generate a polite reply in {language_name}.")
     try:
         response = gemini_model.generate_content(prompt)
-        print(f"Generated AI reply: {response.text}")
         return response.text
     except Exception as e:
         print(f"Error generating AI reply: {e}")
-        return "Could not generate a reply at this time."
+        return "Could not generate a reply."
 
-# --- 5. Database Interaction Helpers (Supabase) ---
 def get_conversation_and_participants(conversation_id: str, sender_id: str):
-    """Fetches conversation, participants, and messages from Supabase."""
+    # ... (get_conversation_and_participants function remains the same)
     try:
-        # Correctly fetches related data from 'profiles' table
-        query = supabase.table("conversations").select(
-            "*, messages(*, sender:profiles(*)), participants:profiles(*)"
-        ).eq("id", conversation_id).single().execute()
-        
-        conversation_data = query.data
-        if not conversation_data: return None, None, None, None
-        
-        sender = next((p for p in conversation_data['participants'] if p['id'] == sender_id), None)
-        recipient = next((p for p in conversation_data['participants'] if p['id'] != sender_id), None)
-        return conversation_data, sender, recipient, conversation_data['messages']
+        query = supabase.table("conversations").select("*, messages(*, sender:profiles(*)), participants:profiles(*)").eq("id", conversation_id).single().execute()
+        d = query.data
+        if not d: return None, None, None, None
+        s = next((p for p in d['participants'] if p['id'] == sender_id), None)
+        r = next((p for p in d['participants'] if p['id'] != sender_id), None)
+        return d, s, r, d['messages']
     except Exception as e:
-        print(f"Error fetching conversation from Supabase: {e}")
+        print(f"Error fetching conversation: {e}")
         return None, None, None, None
 
 def save_message_to_db(conversation_id: str, sender_id: str, text: str):
-    """Saves a new message to the Supabase database."""
+    # ... (save_message_to_db function remains the same)
     try:
-        supabase.table("messages").insert({
-            "conversation_id": conversation_id, "sender_id": sender_id, "original_text": text
-        }).execute()
+        supabase.table("messages").insert({"conversation_id": conversation_id, "sender_id": sender_id, "original_text": text}).execute()
     except Exception as e:
-        print(f"Error saving message to Supabase: {e}")
-
-# --- 6. FastAPI Application and WebSocket Endpoint ---
-app = FastAPI(title="KalaSetu AI Chat Backend")
-
-# The on_startup function has been removed as your database is already populated.
-# The application will now connect to your existing data.
+        print(f"Error saving message: {e}")
 
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    # ... (websocket_endpoint function remains the same)
     await manager.connect(user_id, websocket)
     try:
         while True:
             data = await websocket.receive_json()
             incoming = IncomingMessage(**data)
-
             save_message_to_db(incoming.conversation_id, user_id, incoming.text)
-            
-            _, sender, recipient, messages = get_conversation_and_participants(
-                incoming.conversation_id, user_id
-            )
-
+            _, sender, recipient, messages = get_conversation_and_participants(incoming.conversation_id, user_id)
             if not (sender and recipient):
-                # Ensure we only try to send a message if recipient is online
                 if manager.active_connections.get(user_id):
                     await manager.send_json(user_id, {"error": "Invalid conversation or user."})
                 continue
-            
-            translated_for_recipient = translate_text(incoming.text, recipient['language_preference'])
-            
-            outgoing_msg = OutgoingMessage(
-                conversation_id=incoming.conversation_id, sender_id=user_id, text=translated_for_recipient
-            )
-            # Ensure we only try to send a message if recipient is online
+            translated = translate_text(incoming.text, recipient['language_preference'])
+            outgoing_msg = OutgoingMessage(conversation_id=incoming.conversation_id, sender_id=user_id, text=translated)
             if manager.active_connections.get(recipient['id']):
                  await manager.send_json(recipient['id'], outgoing_msg.dict())
-
             if recipient['role'] == 'artisan':
-                sorted_messages = sorted(messages, key=lambda m: m.get('created_at', ''))
-                history_list = [f"{'Buyer' if msg['sender']['role'] == 'buyer' else 'Artisan'}: {msg['original_text']}" for msg in sorted_messages]
-                history_list.append(f"{'Buyer' if sender['role'] == 'buyer' else 'Artisan'}: {incoming.text}")
-                history_str = "\n".join(history_list)
-
-                ai_reply_text = await generate_ai_reply(
-                    history=history_str,
-                    new_message=translated_for_recipient,
-                    target_language=recipient['language_preference']
-                )
-                
-                suggestion = AiSuggestion(
-                    conversation_id=incoming.conversation_id, text=ai_reply_text
-                )
-                # Ensure we only try to send a message if recipient is online
+                history = "\n".join([f"{'Buyer' if m['sender']['role'] == 'buyer' else 'Artisan'}: {m['original_text']}" for m in sorted(messages, key=lambda m: m.get('created_at', ''))])
+                history += f"\n{'Buyer' if sender['role'] == 'buyer' else 'Artisan'}: {incoming.text}"
+                ai_reply = await generate_ai_reply(history, translated, recipient['language_preference'])
+                suggestion = AiSuggestion(conversation_id=incoming.conversation_id, text=ai_reply)
                 if manager.active_connections.get(recipient['id']):
                     await manager.send_json(recipient['id'], suggestion.dict())
-
     except WebSocketDisconnect:
         manager.disconnect(user_id)
     except Exception as e:
         print(f"An error occurred with user {user_id}: {e}")
         manager.disconnect(user_id)
 
+
+# --- 5. NEW: API Endpoint for AI Listing Generator ---
+@app.post("/upload-image", response_model=ListingResponse)
+async def generate_listing(image: UploadFile = File(...)):
+    if not image.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File provided is not an image.")
+
+    try:
+        contents = await image.read()
+        pil_image = PIL.Image.open(io.BytesIO(contents))
+        
+        prompt = [
+            "You are an expert in marketing handcrafted goods from India. Analyze this image of an artisan's product. Your task is to generate a product title, a compelling story, relevant SEO tags, and a suggested price in INR. Respond with only a valid JSON object in the following format: {\"title\": \"...\", \"story\": \"...\", \"tags\": [\"...\", \"...\"], \"suggested_price\": \"₹...\"}",
+            pil_image
+        ]
+        
+        response = gemini_model.generate_content(prompt)
+        
+        # Clean up the response to ensure it's valid JSON
+        cleaned_response_text = response.text.strip().replace("```json", "").replace("```", "")
+        
+        response_json = json.loads(cleaned_response_text)
+
+        return ListingResponse(
+            title=response_json.get("title", "AI Title Generation Failed"),
+            story=response_json.get("story", "Could not generate a story for this product."),
+            tags=response_json.get("tags", []),
+            suggested_price=response_json.get("suggested_price", "₹0")
+        )
+
+    except Exception as e:
+        print(f"Error during AI listing generation: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate AI content.")
+
+
 # --- How to Run ---
-# In your terminal, run: uvicorn app:app --reload
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,8 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { 
-  TrendingUp, 
+import {
+  TrendingUp,
   Sparkles,
   Calendar,
   Target,
@@ -155,7 +155,7 @@ export default function AITrendSpotter() {
           <Sparkles className="w-5 h-5" />
           Trending Opportunities
         </h2>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {currentTrends.map((trend) => (
             <Card key={trend.id} className="border-border">
@@ -178,7 +178,7 @@ export default function AITrendSpotter() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-muted-foreground">{trend.description}</p>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm font-medium text-foreground">Opportunity Level</div>
@@ -205,10 +205,30 @@ export default function AITrendSpotter() {
                   </ul>
                 </div>
 
-                <Button className="w-full bg-primary hover:bg-primary-hover text-primary-foreground">
+                <Button
+                  className="w-full bg-primary hover:bg-primary-hover text-primary-foreground"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`http://127.0.0.1:8000/trend-suggestions/${encodeURIComponent(trend.trend)}`);
+                      const data = await res.json();
+                      console.log("Suggestions for", trend.trend, data);
+                      alert(
+                        `What to make: ${data.what_to_make.join(", ")}\n` +
+                        `Why trending: ${data.why_trending}\n` +
+                        `Materials: ${data.materials.join(", ")}\n` +
+                        `Price range: ${data.price_range}\n` +
+                        `Source: ${data.source}`
+                      );
+                    } catch (err) {
+                      console.error(err);
+                      alert("Error fetching suggestions");
+                    }
+                  }}
+                >
                   <Target className="w-4 h-4 mr-2" />
                   Create Listing for This Trend
                 </Button>
+
               </CardContent>
             </Card>
           ))}
@@ -237,8 +257,8 @@ export default function AITrendSpotter() {
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">AI Confidence:</span>
                   <div className="flex-1 h-2 bg-muted rounded-full">
-                    <div 
-                      className="h-full bg-primary rounded-full" 
+                    <div
+                      className="h-full bg-primary rounded-full"
                       style={{ width: `${insight.confidence}%` }}
                     ></div>
                   </div>
@@ -269,7 +289,7 @@ export default function AITrendSpotter() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-3">
               <Star className="w-5 h-5 text-accent-dark mt-0.5" />
               <div>
@@ -279,7 +299,7 @@ export default function AITrendSpotter() {
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-start gap-3">
               <Target className="w-5 h-5 text-accent-dark mt-0.5" />
               <div>
