@@ -10,12 +10,18 @@ import PIL.Image
 import io
 
 # --- Setup ---
+# It's good practice to load environment variables at the start if you use a .env file locally
+from dotenv import load_dotenv
+load_dotenv()
+
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 gemini_model = genai.GenerativeModel('gemini-1.5-flash')
 app = FastAPI(title="KalaSetu AI Backend")
 
 # --- CORS Configuration (Permanent Fix) ---
-origins = ["http://localhost:5173"]
+origins = [
+    "http://localhost:5173", # Default Vite port for local dev
+]
 # This regex will match your main URL and ANY preview URL like: https://kala-setu-....vercel.app
 origins.append(re.compile(r"https:\/\/kala-setu-.*\.vercel\.app"))
 
