@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Third-Party Imports ---
-import uvicorn
+# NOTE: uvicorn import removed as it's not needed for production
 import google.generativeai as genai
 from supabase import create_client, Client
 from deep_translator import GoogleTranslator
@@ -44,7 +44,6 @@ class AiSuggestion(BaseModel):
     conversation_id: str
     text: str
 
-# --- NEW: Pydantic models for Listing Generator ---
 class ListingResponse(BaseModel):
     title: str
     story: str
@@ -55,11 +54,13 @@ class ListingResponse(BaseModel):
 # --- 3. FastAPI Application ---
 app = FastAPI(title="KalaSetu AI Chat Backend")
 
-# --- NEW: CORS Middleware (to fix connection errors) ---
+# --- CRITICAL CHANGE: Updated CORS for Production ---
+# This allows your live Vercel frontend to communicate with your Render backend.
 origins = [
-    "http://localhost", "http://localhost:8080", "http://localhost:8081",
-    "http://localhost:8082", "http://localhost:8083", "http://localhost:8084",
-    "http://localhost:5173", # Add any other ports your frontend uses
+    # For local development
+    "http://localhost:5173",
+    # Your live Vercel frontend URL
+    "https://kala-setu-seven.vercel.app",
 ]
 app.add_middleware(
     CORSMiddleware,
@@ -69,9 +70,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- 4. WebSocket Connection Manager & Logic (Existing Chat Feature) ---
+
+# --- 4. WebSocket Connection Manager & Logic ---
 class ConnectionManager:
-    # ... (ConnectionManager class remains the same)
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
     async def connect(self, user_id: str, websocket: WebSocket):
@@ -89,7 +90,6 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 def translate_text(text: str, target_language: str) -> str:
-    # ... (translate_text function remains the same)
     if not text or not target_language: return ""
     try:
         return GoogleTranslator(source='auto', target=target_language).translate(text)
@@ -98,7 +98,6 @@ def translate_text(text: str, target_language: str) -> str:
         return text
 
 async def generate_ai_reply(history: str, new_message: str, target_language: str) -> str:
-    # ... (generate_ai_reply function remains the same)
     lang_map = {'hi': 'Hindi', 'en': 'English'}
     language_name = lang_map.get(target_language, 'the user\'s native language')
     prompt = (f"You are a helpful assistant for an Indian artisan. Based on the conversation history:\n\n---\n{history}\n---\n\nThe buyer just said: '{new_message}'. Generate a polite reply in {language_name}.")
@@ -110,7 +109,6 @@ async def generate_ai_reply(history: str, new_message: str, target_language: str
         return "Could not generate a reply."
 
 def get_conversation_and_participants(conversation_id: str, sender_id: str):
-    # ... (get_conversation_and_participants function remains the same)
     try:
         query = supabase.table("conversations").select("*, messages(*, sender:profiles(*)), participants:profiles(*)").eq("id", conversation_id).single().execute()
         d = query.data
@@ -123,7 +121,6 @@ def get_conversation_and_participants(conversation_id: str, sender_id: str):
         return None, None, None, None
 
 def save_message_to_db(conversation_id: str, sender_id: str, text: str):
-    # ... (save_message_to_db function remains the same)
     try:
         supabase.table("messages").insert({"conversation_id": conversation_id, "sender_id": sender_id, "original_text": text}).execute()
     except Exception as e:
@@ -131,7 +128,6 @@ def save_message_to_db(conversation_id: str, sender_id: str, text: str):
 
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
-    # ... (websocket_endpoint function remains the same)
     await manager.connect(user_id, websocket)
     try:
         while True:
@@ -161,7 +157,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
         manager.disconnect(user_id)
 
 
-# --- 5. NEW: API Endpoint for AI Listing Generator ---
+# --- 5. API Endpoint for AI Listing Generator ---
 @app.post("/upload-image", response_model=ListingResponse)
 async def generate_listing(image: UploadFile = File(...)):
     if not image.content_type.startswith("image/"):
@@ -178,9 +174,7 @@ async def generate_listing(image: UploadFile = File(...)):
         
         response = gemini_model.generate_content(prompt)
         
-        # Clean up the response to ensure it's valid JSON
         cleaned_response_text = response.text.strip().replace("```json", "").replace("```", "")
-        
         response_json = json.loads(cleaned_response_text)
 
         return ListingResponse(
@@ -193,8 +187,3 @@ async def generate_listing(image: UploadFile = File(...)):
     except Exception as e:
         print(f"Error during AI listing generation: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate AI content.")
-
-
-# --- How to Run ---
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
